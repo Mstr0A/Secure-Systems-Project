@@ -42,13 +42,20 @@ def login():
             cursor.execute(query, values)
             result = cursor.fetchone()
 
+            if not result:
+                return render_template(
+                    "error.html", error="Username or password incorrect"
+                )
+
             match = bcrypt.checkpw(
                 form_password.encode(), result["password_hash"].encode()
             )
 
             # If the passwords dont match
             if not match:
-                return "<h1>ACCESS DENIED</h1>"
+                return render_template(
+                    "error.html", error="Username or password incorrect"
+                )
 
             # Set the session if a match
             session["username"] = form_username
@@ -80,12 +87,22 @@ def signup():
         form_username = request.form["username"]
         form_password = request.form["password"]
 
-        # Generate the passowrd hash to be stored
-        form_password_hash = bcrypt.hashpw(form_password.encode(), bcrypt.gensalt())
-
         try:
             connection = get_db_connection()
             cursor = connection.cursor()
+
+            query = "SELECT `password_hash` FROM `users` WHERE `username` = %s"
+            values = (form_username,)
+
+            cursor.execute(query, values)
+            result = cursor.fetchone()
+            if result:
+                return render_template(
+                    "error.html", error="A user with that name already exists"
+                )
+
+            # Generate the passowrd hash to be stored
+            form_password_hash = bcrypt.hashpw(form_password.encode(), bcrypt.gensalt())
 
             query = "INSERT INTO users (username, password_hash) VALUES (%s, %s)"
             values = (form_username, form_password_hash)
