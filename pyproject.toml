@@ -1,0 +1,13 @@
+[project]
+name = "Secure_Systems_Project"
+version = "0.1.0"
+description = "A basic project for my Secure Systems Class"
+readme = "README.md"
+requires-python = ">=3.13.8"
+dependencies = [
+    "bcrypt>=5.0.0",
+    "flask>=3.1.2",
+    "flask-session>=0.8.0",
+    "mysql-connector-python>=9.5.0",
+    "python-dotenv>=1.2.1",
+]
