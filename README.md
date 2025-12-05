@@ -2,6 +2,8 @@
 
 Simple Flask authentication system with login and signup.
 
+(Made by Ameen)
+
 ## Setup
 
 1. Install dependencies:
