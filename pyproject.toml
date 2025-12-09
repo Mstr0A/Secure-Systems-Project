@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.13.8"
 dependencies = [
     "bcrypt>=5.0.0",
-    "flask>=3.1.2",
-    "flask-session>=0.8.0",
+    "fastapi[standard]>=0.124.0",
+    "itsdangerous>=2.2.0",
     "mysql-connector-python>=9.5.0",
     "python-dotenv>=1.2.1",
+    "python-multipart>=0.0.20",
+    "uvicorn[standard]>=0.38.0",
 ]
