@@ -1,138 +1,161 @@
+import os
 import bcrypt
 from dotenv import load_dotenv
-from flask_session import Session
 from db.connection import get_db_connection
-from flask import Flask, request, session, render_template, redirect
+from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, Request, Form, Response
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 load_dotenv()
 
+app = FastAPI()
 
-app = Flask(__name__)
+# Load the secret key
+secret_key = os.getenv("SECRET_KEY")
 
-# Session setup
-app.config["SESSION_PERMANENT"] = False
-app.config["SESSION_TYPE"] = "filesystem"
+# Validation
+if secret_key is None:
+    raise ValueError("Missing Secret Key for session middleware")
 
-Session(app)
+app.add_middleware(SessionMiddleware, secret_key=secret_key)
 
-
-@app.route("/")
-def root():
-    return render_template("index.html")
+# Setup templates
+templates = Jinja2Templates(directory="templates")
 
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        if session.get("username"):
-            # Fetch the data needed if a session exists, otherwise continue with a normal login
+@app.get("/", response_class=HTMLResponse, name="root")
+async def root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-            return render_template("logged.html", username=session.get("username"))
 
-        try:
-            form_username = request.form["username"]
-            form_password = request.form["password"]
+@app.get("/login", response_class=HTMLResponse, name="login")
+async def login_get(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
 
-            connection = get_db_connection()
-            cursor = connection.cursor(dictionary=True)
 
-            query = "SELECT `password_hash` FROM `users` WHERE `username` = %s"
-            values = (form_username,)
+@app.post("/login", response_class=HTMLResponse, name="login_post")
+async def login_post(
+    request: Request, username: str = Form(...), password: str = Form(...)
+):
+    # Check if user is already logged in
+    if request.session.get("username"):
+        return templates.TemplateResponse(
+            "logged.html",
+            {"request": request, "username": request.session.get("username")},
+        )
 
-            cursor.execute(query, values)
-            result = cursor.fetchone()
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
 
-            if not result:
-                return render_template(
-                    "error.html", error="Username or password incorrect"
-                )
+        query = "SELECT `password_hash` FROM `users` WHERE `username` = %s"
+        values = (username,)
 
-            match = bcrypt.checkpw(
-                form_password.encode(), result["password_hash"].encode()
+        cursor.execute(query, values)
+        result = cursor.fetchone()
+
+        if not result:
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "error": "Username or password incorrect"},
             )
 
-            # If the passwords dont match
-            if not match:
-                return render_template(
-                    "error.html", error="Username or password incorrect"
-                )
+        match = bcrypt.checkpw(password.encode(), result["password_hash"].encode())
 
-            # Set the session if a match
-            session["username"] = form_username
+        if not match:
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "error": "Username or password incorrect"},
+            )
 
-            # If they match we do another query to fetch the stuff we need but here we dont need much
+        # Set the session
+        request.session["username"] = username
 
-            return render_template("logged.html", username=form_username)
+        return templates.TemplateResponse(
+            "logged.html", {"request": request, "username": username}
+        )
 
-        except Exception as e:
-            cursor.close()
-            connection.close()
-            return f"<h1>ERROR</h1><pre>{str(e)}</pre>", 500
+    except Exception as e:
+        return Response(
+            content=f"<h1>ERROR</h1><pre>{str(e)}</pre>",
+            status_code=500,
+            media_type="text/html",
+        )
 
-        finally:  # Close everything in the end
-            try:
-                cursor.close()
-                connection.close()
-            except Exception:
-                pass
-
-    else:  # GET request
-        return render_template("login.html")
-
-
-@app.route("/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "POST":
-        # Get the form info
-        form_username = request.form["username"]
-        form_password = request.form["password"]
-
+    finally:
         try:
-            connection = get_db_connection()
-            cursor = connection.cursor()
-
-            query = "SELECT `password_hash` FROM `users` WHERE `username` = %s"
-            values = (form_username,)
-
-            cursor.execute(query, values)
-            result = cursor.fetchone()
-            if result:
-                return render_template(
-                    "error.html", error="A user with that name already exists"
-                )
-
-            # Generate the passowrd hash to be stored
-            form_password_hash = bcrypt.hashpw(form_password.encode(), bcrypt.gensalt())
-
-            query = "INSERT INTO users (username, password_hash) VALUES (%s, %s)"
-            values = (form_username, form_password_hash)
-            cursor.execute(query, values)
-            connection.commit()
-
-            return render_template("signed.html")
-        except Exception as e:
             cursor.close()
             connection.close()
-            return f"<h1>ERROR</h1><pre>{str(e)}</pre>", 500
-
-        finally:  # Close everything in the end
-            try:
-                cursor.close()
-                connection.close()
-            except Exception:
-                pass
-    else:  # GET request
-        return render_template("signup.html")
+        except Exception:
+            pass
 
 
-@app.route("/logout", methods=["GET"])
-def logout():
-    # Check if a session exists, if so, clear it
-    if session.get("username"):
-        session["username"] = None
+@app.get("/signup", response_class=HTMLResponse, name="signup")
+async def signup_get(request: Request):
+    return templates.TemplateResponse("signup.html", {"request": request})
 
-    return redirect("/")
+
+@app.post("/signup", response_class=HTMLResponse, name="signup_post")
+async def signup_post(
+    request: Request, username: str = Form(...), password: str = Form(...)
+):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        query = "SELECT `password_hash` FROM `users` WHERE `username` = %s"
+        values = (username,)
+
+        cursor.execute(query, values)
+        result = cursor.fetchone()
+
+        if result:
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "error": "A user with that name already exists"},
+            )
+
+        # Generate the password hash
+        password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+
+        query = "INSERT INTO users (username, password_hash) VALUES (%s, %s)"
+        values = (username, password_hash)
+        cursor.execute(query, values)
+        connection.commit()
+
+        return templates.TemplateResponse("signed.html", {"request": request})
+
+    except Exception as e:
+        return Response(
+            content=f"<h1>ERROR</h1><pre>{str(e)}</pre>",
+            status_code=500,
+            media_type="text/html",
+        )
+
+    finally:
+        try:
+            cursor.close()
+            connection.close()
+        except Exception:
+            pass
+
+
+@app.get("/logout", name="logout")
+async def logout(request: Request):
+    # Clear the session
+    if request.session.get("username"):
+        request.session.pop("username", None)
+
+    return RedirectResponse(url="/", status_code=302)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5050, debug=True)
+    import uvicorn
+
+    debug = os.getenv("DEBUG", "False").lower() == "true"
+
+    if debug:
+        uvicorn.run(app, host="0.0.0.0", port=5050, reload=True)
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=5050, workers=4)
