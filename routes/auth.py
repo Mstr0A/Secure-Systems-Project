@@ -12,6 +12,10 @@ templates = Config.templates
 
 @auth_router.get("/login", response_class=HTMLResponse, name="login")
 async def login_get(request: Request):
+    # Check if user is already logged in
+    if request.session.get("username"):
+        return RedirectResponse("/dashboard", status_code=303)
+
     return templates.TemplateResponse("login.html", {"request": request})
 
 
@@ -19,10 +23,6 @@ async def login_get(request: Request):
 async def login_post(
     request: Request, username: str = Form(...), password: str = Form(...)
 ):
-    # Check if user is already logged in
-    if request.session.get("username"):
-        return RedirectResponse("/dashboard", status_code=303)
-
     try:
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
