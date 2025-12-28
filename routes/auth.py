@@ -15,13 +15,13 @@ async def login_get(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 
-@auth_router.post("/login", response_class=HTMLResponse, name="login_post")
+@auth_router.post("/login", name="login_post")
 async def login_post(
     request: Request, username: str = Form(...), password: str = Form(...)
 ):
     # Check if user is already logged in
     if request.session.get("username"):
-        return RedirectResponse("/dashboard")
+        return RedirectResponse("/dashboard", status_code=303)
 
     try:
         connection = get_db_connection()
@@ -50,7 +50,7 @@ async def login_post(
         # Set the session
         request.session["username"] = username
 
-        return RedirectResponse("/dashboard")
+        return RedirectResponse("/dashboard", status_code=303)
 
     except Exception as e:
         return Response(
@@ -100,7 +100,7 @@ async def signup_post(
         cursor.execute(query, values)
         connection.commit()
 
-        return RedirectResponse("/welcome")
+        return templates.TemplateResponse("signed.html", {"request": request})
 
     except Exception as e:
         return Response(

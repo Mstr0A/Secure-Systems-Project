@@ -1,5 +1,5 @@
 import time
-from config import Config
+from .config import Config
 from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
