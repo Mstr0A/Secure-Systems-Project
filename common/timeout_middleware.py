@@ -11,7 +11,7 @@ class SessionTimeoutMiddleware(BaseHTTPMiddleware):
 
             if last_activity and time.time() - last_activity > Config.session_timeout:
                 request.session.clear()
-                return RedirectResponse(url="/login")
+                return RedirectResponse(url="/login", status_code=303)
 
             request.session["last_activity"] = time.time()
 
